@@ -1,40 +1,40 @@
 use pyo3::prelude::*;
 
-use crate::symbol::{Symbol, SymbolGIL};
+use crate::utils::{HasGIL, IsGIL, NoGIL, GIL};
 
 #[derive(Clone, Debug)]
-pub struct Context {
+pub struct Context<G: IsGIL = ()> {
+    pub(crate) gil: G,
     pub(crate) sympy: Py<PyModule>,
 }
-impl Context {
-    pub fn new() -> PyResult<Self> {
-        let sympy = Python::with_gil(|py| py.import("sympy").map(|a| a.into()))?;
-        Ok(Self { sympy })
+
+impl<'py> Context<GIL<'py>> {
+    pub(crate) fn sympy<'a: 'py>(&'a self) -> &'py PyModule {
+        self.sympy.as_ref(self.gil.0)
     }
-    pub fn symbol<T: ToString>(&self, name: T) -> PyResult<Symbol> {
-        Python::with_gil(|py| self.symbol_gil(py, name).map(|a| a.un_gil()))
+}
+impl<'py, G: IsGIL> Context<G> {
+    pub fn with_gil<R, F: FnOnce(&Context<GIL>) -> R>(&self, f: F) -> R {
+        self.gil.with_ctx(self, f)
     }
-    pub fn symbol_gil<'py, 'a: 'py, T: ToString>(
-        &'a self,
-        py: Python<'py>,
-        name: T,
-    ) -> PyResult<SymbolGIL<'py>> {
-        SymbolGIL::new(py, self, name)
+}
+
+impl<'py> HasGIL<'py> for Context<GIL<'py>> {
+    type Opp = Context<()>;
+    fn into_no_gil(self) -> Self::Opp {
+        Context {
+            gil: (),
+            sympy: self.sympy,
+        }
     }
-    pub fn symbol_non_commutative<T: ToString>(&self, name: T) -> PyResult<Symbol> {
-        Python::with_gil(|py| {
-            self.symbol_non_commutative_gil(py, name)
-                .map(|a| a.un_gil())
-        })
-    }
-    pub fn symbol_non_commutative_gil<'py, 'a: 'py, T: ToString>(
-        &'a self,
-        py: Python<'py>,
-        name: T,
-    ) -> PyResult<SymbolGIL<'py>> {
-        SymbolGIL::new(py, self, name)
-    }
-    pub(crate) fn sympy<'py, 'a: 'py>(&'a self, py: Python<'py>) -> &'py PyModule {
-        self.sympy.as_ref(py)
+}
+impl NoGIL for Context {
+    type Opp<'py> = Context<GIL<'py>>;
+    #[allow(clippy::needless_lifetimes)]
+    fn into_gil<'py>(self, py: Python<'py>) -> Self::Opp<'py> {
+        Context {
+            gil: GIL(py),
+            sympy: self.sympy,
+        }
     }
 }

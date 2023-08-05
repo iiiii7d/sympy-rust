@@ -1,46 +1,38 @@
 use darling::FromDeriveInput;
 use proc_macro::TokenStream;
+use proc_macro2::Ident;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, DeriveInput};
 
-#[proc_macro_derive(GIL, attributes(gil))]
-pub fn derive_gil(item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(item as DeriveInput);
-    let gil = &args.ident;
-    let no_gil = format_ident!("{}", args.ident.to_string().strip_suffix("GIL").unwrap());
-    let out = quote! {
-        impl<'a> Object for #gil<'a> {
-            type Inner = PyAny;
-            fn inner(&self) -> &Self::Inner {
-                &self.0
-            }
-        }
-        impl<'a> GIL for #gil<'a> {
-            type UnGIL = #no_gil;
-            fn un_gil(&self) -> Self::UnGIL {
-                #no_gil(self.inner().into())
-            }
-        }
-    };
-    out.into()
+#[derive(Debug, FromDeriveInput, Clone)]
+#[darling(attributes(object))]
+struct ObjectArgs {
+    ident: Ident,
+    class_name: String,
 }
 
-#[proc_macro_derive(NoGIL, attributes(gil))]
-pub fn derive_no_gil(item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(item as DeriveInput);
-    let no_gil = &args.ident;
-    let gil = format_ident!("{}GIL", args.ident);
+#[proc_macro_derive(Object, attributes(object))]
+pub fn derive_object(item: TokenStream) -> TokenStream {
+    let ObjectArgs { ident, class_name } =
+        ObjectArgs::from_derive_input(&parse_macro_input!(item as DeriveInput)).unwrap();
     let out = quote! {
-        impl Object for #no_gil {
-            type Inner = Py<PyAny>;
-            fn inner(&self) -> &Self::Inner {
+        impl<'py, G: IsGIL> Object<'py, G> for #ident<'py, G> {
+            const CLASS_NAME: &'static str = #class_name;
+            fn inner(&self) -> &G::Inner<'py> {
                 &self.0
             }
         }
-        impl NoGIL for #no_gil {
-            type GIL<'py> = #gil<'py>;
-            fn gil<'py, 'a: 'py>(&'a self, py: Python<'py>) -> Self::GIL<'py> {
-                #gil(self.inner().as_ref(py))
+        impl<'py> HasGIL<'py> for #ident<'py, GIL<'py>> {
+            type Opp = #ident<'py, ()>;
+            fn into_no_gil(self) -> Self::Opp {
+                #ident(self.0.into(), ())
+            }
+        }
+        impl NoGIL for #ident<'_> {
+            type Opp<'py> = #ident<'py, GIL<'py>>;
+            #[allow(clippy::needless_lifetimes)]
+            fn into_gil<'py>(self, py: Python<'py>) -> Self::Opp<'py> {
+                #ident(self.0.as_ref(py), GIL(py))
             }
         }
     };
