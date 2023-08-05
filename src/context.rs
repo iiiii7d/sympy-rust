@@ -14,7 +14,7 @@ impl<'py> Context<GIL<'py>> {
     }
 }
 impl<'py, G: IsGIL> Context<G> {
-    pub fn with_gil<R, F: FnOnce(&Context<GIL>) -> R>(&self, f: F) -> R {
+    pub fn with_gil<R: 'py, F: FnOnce(&Context<GIL<'py>>) -> R>(&self, f: F) -> R {
         self.gil.with_ctx(self, f)
     }
 }

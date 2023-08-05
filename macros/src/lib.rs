@@ -21,18 +21,21 @@ pub fn derive_object(item: TokenStream) -> TokenStream {
             fn inner(&self) -> &G::Inner<'py> {
                 &self.0
             }
+            fn ctx(&self) -> &Context<G> {
+                &self.1
+            }
         }
         impl<'py> HasGIL<'py> for #ident<'py, GIL<'py>> {
             type Opp = #ident<'py, ()>;
             fn into_no_gil(self) -> Self::Opp {
-                #ident(self.0.into(), ())
+                #ident(self.0.into(), self.1.into_no_gil())
             }
         }
         impl NoGIL for #ident<'_> {
             type Opp<'py> = #ident<'py, GIL<'py>>;
             #[allow(clippy::needless_lifetimes)]
             fn into_gil<'py>(self, py: Python<'py>) -> Self::Opp<'py> {
-                #ident(self.0.as_ref(py), GIL(py))
+                #ident(self.0.into_ref(py), self.1.into_gil(py))
             }
         }
     };
