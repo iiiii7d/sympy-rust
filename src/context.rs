@@ -1,40 +1,33 @@
+use std::borrow::Cow;
+
 use pyo3::prelude::*;
 
-use crate::utils::{HasGIL, IsGIL, NoGIL, GIL};
-
-#[derive(Clone, Debug)]
-pub struct Context<G: IsGIL = ()> {
-    pub(crate) gil: G,
+#[derive(Clone)]
+pub struct Context<'py> {
+    pub(crate) gil: Python<'py>,
     pub(crate) sympy: Py<PyModule>,
 }
 
-impl<'py> Context<GIL<'py>> {
+impl<'py> Context<'py> {
     pub(crate) fn sympy<'a: 'py>(&'a self) -> &'py PyModule {
-        self.sympy.as_ref(self.gil.0)
+        self.sympy.as_ref(self.gil)
     }
-}
-impl<'py, G: IsGIL> Context<G> {
-    pub fn with_gil<R: 'py, F: FnOnce(&Context<GIL<'py>>) -> R>(&self, f: F) -> R {
-        self.gil.with_ctx(self, f)
+    pub fn new(py: Python<'py>) -> PyResult<Self> {
+        Ok(Self {
+            gil: py,
+            sympy: py.import("sympy")?.into(),
+        })
     }
-}
-
-impl<'py> HasGIL<'py> for Context<GIL<'py>> {
-    type Opp = Context<()>;
-    fn into_no_gil(self) -> Self::Opp {
-        Context {
-            gil: (),
-            sympy: self.sympy,
-        }
+    pub fn with_gil<R, F: FnOnce(Context) -> R>(f: F) -> PyResult<R> {
+        Python::with_gil(|py| {
+            let ctx = Context::new(py)?;
+            Ok(f(ctx))
+        })
     }
-}
-impl NoGIL for Context {
-    type Opp<'py> = Context<GIL<'py>>;
-    #[allow(clippy::needless_lifetimes)]
-    fn into_gil<'py>(self, py: Python<'py>) -> Self::Opp<'py> {
-        Context {
-            gil: GIL(py),
-            sympy: self.sympy,
-        }
+    pub fn try_with_gil<R, F: FnOnce(Context) -> PyResult<R> + 'static>(f: F) -> PyResult<R> {
+        Python::with_gil(|py| {
+            let ctx = Context::new(py)?;
+            f(ctx)
+        })
     }
 }

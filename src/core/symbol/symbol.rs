@@ -1,11 +1,12 @@
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
+
 use macros::Object;
 use pyo3::prelude::*;
 
 use crate::{
     context::Context,
     py_dict,
-    utils::{EnsureGIL, HasGIL, IsGIL, NoGIL, Object, GIL},
+    utils::{Object, GIL},
 };
 
 pub trait SymbolImpl {
@@ -13,31 +14,36 @@ pub trait SymbolImpl {
     fn set_name<T: ToString>(&self, name: T) -> PyResult<()>;
 }
 
-
 #[derive(Clone, Debug, Object)]
 #[object(class_name = "Symbol")]
-pub struct SymbolGIL<'py, G: IsGIL + 'py = ()>(G::Inner<'py>, Context<G>);
-impl<'py> SymbolGIL<'py, GIL<'py>> {
-    pub fn new<'a: 'py, T: ToString>(ctx: &'a Context<GIL<'py>>, name: T) -> PyResult<Self> {
+pub struct Symbol(PyObject);
+impl<'py, 'a, 'b> GIL<'py, 'a, 'b, Symbol> {
+    pub fn new<T: ToString>(ctx: &'a Context<'py>, name: T) -> PyResult<Self> {
         let res = Self::class(ctx)?.call1((name.to_string(),))?;
-        Ok(Self(res, ctx.to_owned()))
+        Ok(Self(Cow::Owned(Symbol(res.into())), ctx))
     }
-    pub fn new_non_commutative<'a: 'py, T: ToString>(
-        ctx: &'a Context<GIL<'py>>,
-        name: T,
-    ) -> PyResult<Self> {
+    pub fn new_non_commutative<T: ToString>(ctx: &'a Context<'py>, name: T) -> PyResult<Self> {
         let res = Self::class(ctx)?.call(
             (name.to_string(),),
-            Some(py_dict! {ctx.gil.0, "commutative" => false}),
+            Some(py_dict! {ctx.gil, "commutative" => false}),
         )?;
-        Ok(Self(res, ctx.to_owned()))
+        Ok(Self(Cow::Owned(Symbol(res.into())), ctx))
     }
 }
-impl<'py, G: IsGIL> SymbolImpl for SymbolGIL<'py, G> {
+impl<'py, 'a, 'b> SymbolImpl for GIL<'py, 'a, 'b, Symbol> {
     fn name(&self) -> PyResult<String> {
-        self.inner_with_gil(move |a| a.getattr("name")?.extract::<String>())
+        self.py_inner().getattr("name")?.extract::<String>()
     }
     fn set_name<T: ToString>(&self, name: T) -> PyResult<()> {
-        self.inner_with_gil(move |a| a.setattr("name", name.to_string()))
+        self.py_inner().setattr("name", name.to_string())
+    }
+}
+
+impl<'py> Context<'py> {
+    pub fn symbol<T: ToString>(&self, name: T) -> PyResult<GIL<Symbol>> {
+        GIL::<Symbol>::new(self, name)
+    }
+    pub fn symbol_non_commutative<T: ToString>(&self, name: T) -> PyResult<GIL<Symbol>> {
+        GIL::<Symbol>::new_non_commutative(self, name)
     }
 }

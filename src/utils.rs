@@ -1,5 +1,6 @@
-use std::sync::Arc;
-use pyo3::{Py, PyAny, PyResult, Python};
+use std::{borrow::Cow, sync::Arc};
+
+use pyo3::{prelude::*, PyTypeInfo};
 
 use crate::context::Context;
 #[macro_export]
@@ -12,67 +13,30 @@ macro_rules! py_dict {
     }}
 }
 
-pub trait Object<'py, G: IsGIL + 'py = ()> {
+pub struct GIL<'py, 'a: 'py, 'b: 'py, T: Object + Clone + ?Sized>(
+    pub Cow<'b, T>,
+    pub &'a Context<'py>,
+);
+
+pub trait Object: Clone {
     const CLASS_NAME: &'static str;
-    fn inner(&self) -> &G::Inner<'py>;
-    fn ctx(&self) -> &Context<G>;
-    fn inner_with_gil<'a: 'py, R: 'py, F: FnOnce(&'py PyAny) -> R>(&'a self, f: F) -> R {
-        self.ctx().with_gil(|ctx| {
-            f(self.inner().ensure_gil(ctx.gil.0))
-        })
-    }
-    fn class<'a: 'py>(ctx: &'a Context<G>) -> PyResult<G::Inner<'py>> {
-        ctx.with_gil(|ctx| ctx.sympy().getattr(Self::CLASS_NAME).map(|a| a.into()))
-    }
-}
-pub trait HasGIL<'py>: Clone {
-    type Opp;
-    fn no_gil(&self) -> Self::Opp {
-        self.to_owned().into_no_gil()
-    }
-    fn into_no_gil(self) -> Self::Opp;
-}
-pub trait NoGIL: Clone {
-    type Opp<'py>;
-    fn gil<'py>(&self, ctx: Python<'py>) -> Self::Opp<'py> {
-        self.to_owned().into_gil(ctx)
-    }
-    #[allow(clippy::needless_lifetimes)]
-    fn into_gil<'py>(self, ctx: Python<'py>) -> Self::Opp<'py>;
-}
-
-pub(crate) trait EnsureGIL<'py>: From<&'py PyAny> {
-    fn ensure_gil<'a: 'py>(&'a self, py: Python<'py>) -> &'py PyAny;
-}
-impl<'py> EnsureGIL<'py> for &'py PyAny {
-    fn ensure_gil<'a: 'py>(&'a self, _: Python<'py>) -> &'py PyAny {
-        self
-    }
-}
-impl<'py> EnsureGIL<'py> for Py<PyAny> {
-    fn ensure_gil<'a: 'py>(&'a self, py: Python<'py>) -> &'py PyAny {
-        self.as_ref(py)
+    fn inner(&self) -> &PyObject;
+    fn with_ctx<'py, 'a: 'py, 'b: 'py>(&'b self, ctx: &'a Context<'py>) -> GIL<'py, 'a, 'b, Self> {
+        GIL(Cow::Borrowed(&self), ctx)
     }
 }
 
-#[derive(Copy, Clone)]
-pub struct GIL<'py>(pub Python<'py>);
-pub trait IsGIL: Copy {
-    type Inner<'py>: EnsureGIL<'py>;
-    fn with_ctx<'py, R: 'py, F: FnOnce(&Context<GIL<'py>>) -> R>(&self, ctx: &Context<Self>, f: F) -> R;
-}
-impl IsGIL for () {
-    type Inner<'py> = Py<PyAny>;
-    fn with_ctx<R: 'static, F: FnOnce(&Context<GIL<'py>>) -> R>(&self, ctx: &Context<Self>, f: F) -> R {
-        Python::with_gil(|py| {
-            let ctx = ctx.gil(py);
-            f(&ctx)
-        })
+impl<'py, 'a, 'b, T: Object + Clone + ?Sized> GIL<'py, 'a, 'b, T> {
+    pub fn inner(&self) -> &Cow<T> {
+        &self.0
     }
-}
-impl<'py2> IsGIL for GIL<'py2> {
-    type Inner<'a> = &'a PyAny;
-    fn with_ctx<'py, R: 'py, F: FnOnce(&Context<GIL<'py>>) -> R>(&self, ctx: &Context<Self>, f: F) -> R {
-        f(&ctx)
+    pub fn into_inner(self) -> T {
+        self.0.into_owned()
+    }
+    pub fn py_inner<'c: 'py>(&'c self) -> &'py PyAny {
+        self.inner().inner().as_ref(self.1.gil)
+    }
+    pub(crate) fn class(ctx: &'a Context<'py>) -> PyResult<&'a PyAny> {
+        ctx.sympy().getattr(T::CLASS_NAME)
     }
 }
