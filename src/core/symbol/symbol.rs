@@ -1,6 +1,6 @@
 use std::{borrow::Cow, sync::Arc};
 
-use macros::Object;
+use macros::{impl_for_non_gil, Object};
 use pyo3::prelude::*;
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
 
 pub trait SymbolImpl {
     fn name(&self) -> PyResult<String>;
-    fn set_name<T: ToString>(&self, name: T) -> PyResult<()>;
+    fn set_name<T: ToString + 'static>(&self, name: T) -> PyResult<()>;
 }
 
 #[derive(Clone, Debug, Object)]
@@ -30,11 +30,12 @@ impl<'py, 'a, 'b> GIL<'py, 'a, 'b, Symbol> {
         Ok(Self(Cow::Owned(Symbol(res.into())), ctx))
     }
 }
+#[impl_for_non_gil(Symbol)]
 impl<'py, 'a, 'b> SymbolImpl for GIL<'py, 'a, 'b, Symbol> {
     fn name(&self) -> PyResult<String> {
         self.py_inner().getattr("name")?.extract::<String>()
     }
-    fn set_name<T: ToString>(&self, name: T) -> PyResult<()> {
+    fn set_name<T: ToString + 'static>(&self, name: T) -> PyResult<()> {
         self.py_inner().setattr("name", name.to_string())
     }
 }
