@@ -1,12 +1,14 @@
-use sympy_rust::{context::Context, core::symbol::symbol::SymbolImpl};
+use pyo3::PyResult;
+use sympy_rust::{
+    context::Context,
+    core::symbol::symbol::{Symbol, SymbolImpl},
+};
 
 #[test]
-fn it_works() {
-    let sym = Context::try_with_gil(|ctx| {
-        let sym = ctx.symbol("a")?;
-        println!("{}", sym.name()?);
-        Ok(sym.into_inner())
-    })
-    .unwrap();
-    println!("{}", sym.name().unwrap());
+fn it_works() -> PyResult<()> {
+    let x = Symbol::new("x")?;
+    println!("{}", x.name()?);
+    x.set_name("y")?;
+    println!("{}", x.name()?);
+    Ok(())
 }

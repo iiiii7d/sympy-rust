@@ -1,4 +1,3 @@
-#![feature(associated_type_defaults)]
 #![allow(clippy::module_inception)]
 #![warn(
     clippy::as_ptr_cast_mut,

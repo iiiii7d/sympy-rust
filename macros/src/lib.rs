@@ -197,7 +197,7 @@ pub fn derive_object(item: TokenStream) -> TokenStream {
     let ObjectArgs { ident, class_name } =
         ObjectArgs::from_derive_input(&parse_macro_input!(item as DeriveInput)).unwrap();
     let out = quote! {
-        impl Object for #ident {
+        impl crate::utils::Object for #ident {
             const CLASS_NAME: &'static str = #class_name;
             fn inner(&self) -> &PyObject {
                 &self.0
@@ -218,7 +218,7 @@ pub fn derive_config(item: TokenStream) -> TokenStream {
     let ConfigArgs { ident } =
         ConfigArgs::from_derive_input(&parse_macro_input!(item as DeriveInput)).unwrap();
     let out = quote! {
-        impl<'py> Config<'py> for #ident<'py> {
+        impl<'py> crate::utils::Config<'py> for #ident<'py> {
             fn new(ctx: &Context<'py>) -> Self {
                 Self(PyDict::new(ctx.gil))
             }
@@ -231,6 +231,7 @@ pub fn derive_config(item: TokenStream) -> TokenStream {
 pub fn impl_for_non_gil(attr: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemImpl);
     let mut new_item = item.to_owned();
+    let trait_ = &item.trait_.as_ref().unwrap().1;
     let ty = format_ident!("{}", attr.to_string());
     for it in &mut new_item.items {
         let ImplItem::Fn(f) = it else {
@@ -249,7 +250,7 @@ pub fn impl_for_non_gil(attr: TokenStream, item: TokenStream) -> TokenStream {
     let new_items = new_item.items;
     let out = quote! {
         #item
-        impl SymbolImpl for #ty {
+        impl #trait_ for #ty {
             #(#new_items)*
         }
     };
