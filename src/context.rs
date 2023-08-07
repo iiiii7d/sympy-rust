@@ -16,13 +16,13 @@ impl<'py> Context<'py> {
             sympy: py.import("sympy")?.into(),
         })
     }
-    pub fn with_gil<'b, R, F: for<'a> FnOnce(Context<'a>) -> R + 'b>(f: F) -> PyResult<R> {
+    pub fn with_gil<'f, R, F: for<'a> FnOnce(Context<'a>) -> R + 'f>(f: F) -> PyResult<R> {
         Python::with_gil(|py| {
             let ctx = Context::new(py)?;
             Ok(f(ctx))
         })
     }
-    pub fn try_with_gil<'b, R, F: for<'a> FnOnce(Context<'a>) -> PyResult<R> + 'b>(
+    pub fn try_with_gil<'f, R, F: for<'a> FnOnce(Context<'a>) -> PyResult<R> + 'f>(
         f: F,
     ) -> PyResult<R> {
         Python::with_gil(|py| {

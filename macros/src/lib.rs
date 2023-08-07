@@ -159,7 +159,31 @@ use darling::FromDeriveInput;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, parse_quote, DeriveInput, FnArg, ImplItem, ItemImpl, Pat};
+use syn::{
+    parse_macro_input, parse_quote, punctuated::Punctuated, DeriveInput, Expr, ExprArray, FnArg,
+    ImplItem, ImplItemFn, ItemImpl, Pat, Receiver, ReturnType, Token,
+};
+
+fn args(f: &ImplItemFn) -> Vec<&Ident> {
+    f.sig
+        .inputs
+        .iter()
+        .filter_map(|a| {
+            if let FnArg::Typed(ty) = a {
+                Some(&ty.pat)
+            } else {
+                None
+            }
+        })
+        .filter_map(|a| {
+            if let Pat::Ident(i) = &**a {
+                Some(&i.ident)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>()
+}
 
 #[derive(Debug, FromDeriveInput, Clone)]
 #[darling(attributes(object))]
@@ -183,6 +207,26 @@ pub fn derive_object(item: TokenStream) -> TokenStream {
     out.into()
 }
 
+#[derive(Debug, FromDeriveInput, Clone)]
+#[darling(attributes(config))]
+struct ConfigArgs {
+    ident: Ident,
+}
+
+#[proc_macro_derive(Config, attributes(object))]
+pub fn derive_config(item: TokenStream) -> TokenStream {
+    let ConfigArgs { ident } =
+        ConfigArgs::from_derive_input(&parse_macro_input!(item as DeriveInput)).unwrap();
+    let out = quote! {
+        impl<'py> Config<'py> for #ident<'py> {
+            fn new(ctx: &Context<'py>) -> Self {
+                Self(PyDict::new(ctx.gil))
+            }
+        }
+    };
+    out.into()
+}
+
 #[proc_macro_attribute]
 pub fn impl_for_non_gil(attr: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemImpl);
@@ -193,25 +237,7 @@ pub fn impl_for_non_gil(attr: TokenStream, item: TokenStream) -> TokenStream {
             continue;
         };
         let ident = &f.sig.ident;
-        let args = f
-            .sig
-            .inputs
-            .iter()
-            .filter_map(|a| {
-                if let FnArg::Typed(ty) = a {
-                    Some(&ty.pat)
-                } else {
-                    None
-                }
-            })
-            .filter_map(|a| {
-                if let Pat::Ident(i) = &**a {
-                    Some(&i.ident)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
+        let args = args(f);
         let block = parse_quote! {{
             let s = self.to_owned();
             Context::try_with_gil(move |ctx| {
@@ -225,6 +251,78 @@ pub fn impl_for_non_gil(attr: TokenStream, item: TokenStream) -> TokenStream {
         #item
         impl SymbolImpl for #ty {
             #(#new_items)*
+        }
+    };
+    out.into()
+}
+
+#[proc_macro_attribute]
+pub fn impl_for_non_gil2(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemImpl);
+    let mut new_item = item.to_owned();
+    let ty = format_ident!("{}", attr.to_string());
+
+    for it in &mut new_item.items {
+        let ImplItem::Fn(f) = it else {
+            continue;
+        };
+        let ident = &f.sig.ident;
+        f.sig.inputs = f
+            .sig
+            .inputs
+            .iter()
+            .cloned()
+            .filter(|a| {
+                let FnArg::Typed(ty) = a else { return true };
+                let Pat::Ident(i) = &*ty.pat else { return true };
+                &*i.ident.to_string() != "ctx"
+            })
+            .collect();
+        let args = args(f);
+        let block = parse_quote! {{
+            Context::try_with_gil(|ctx| {
+                Gil::<#ty>::#ident(&ctx, #(#args),*).map(|a| a.into_inner())
+            })
+        }};
+        f.block = block;
+    }
+
+    let mut ctx_item = new_item.to_owned();
+    for it in &mut ctx_item.items {
+        let ImplItem::Fn(f) = it else {
+            continue;
+        };
+        let ident = &f.sig.ident;
+        f.sig.inputs.insert(0, parse_quote! {&self});
+        let args = args(f);
+        let block = parse_quote! {{
+            Gil::<#ty>::#ident(self, #(#args),*)
+        }};
+        f.block = block;
+        let out_ty = parse_quote! { PyResult<Gil<#ty>> };
+        let ReturnType::Type(_, ty) = &mut f.sig.output else {
+            panic!()
+        };
+        *ty = out_ty;
+        f.sig.ident = format_ident!(
+            "{}",
+            format!(
+                "{}{}",
+                attr.to_string().to_lowercase(),
+                f.sig.ident.to_string().strip_prefix("new").unwrap()
+            )
+        );
+    }
+
+    let new_items = new_item.items;
+    let ctx_items = ctx_item.items;
+    let out = quote! {
+        #item
+        impl #ty {
+            #(#new_items)*
+        }
+        impl<'py> Context<'py> {
+            #(#ctx_items)*
         }
     };
     out.into()

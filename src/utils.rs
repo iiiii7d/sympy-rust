@@ -3,15 +3,6 @@ use std::borrow::Cow;
 use pyo3::prelude::*;
 
 use crate::context::Context;
-#[macro_export]
-macro_rules! py_dict {
-    {$py:expr, $($x:expr => $y:expr),*} => {{
-        use pyo3::types::PyDict;
-        let d = PyDict::new($py);
-        $(d.set_item($x, $y)?;)*
-        d
-    }}
-}
 
 pub struct Gil<'py, 'a: 'py, 'b: 'py, T: Object + Clone + ?Sized>(
     pub Cow<'b, T>,
@@ -39,4 +30,18 @@ impl<'py, 'a, 'b, T: Object + Clone + ?Sized> Gil<'py, 'a, 'b, T> {
     pub(crate) fn class(ctx: &'a Context<'py>) -> PyResult<&'a PyAny> {
         ctx.sympy().getattr(T::CLASS_NAME)
     }
+}
+
+pub trait Config<'py> {
+    fn new(ctx: &Context<'py>) -> Self;
+}
+
+#[macro_export]
+macro_rules! config_fn {
+    ($i:ident, $ty:ty) => {
+        pub fn $i(self, v: $ty) -> PyResult<Self> {
+            self.0.set_item(stringify!($i), v)?;
+            Ok(self)
+        }
+    };
 }
