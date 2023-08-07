@@ -1,4 +1,4 @@
-use std::{borrow::Cow, sync::Arc};
+use std::borrow::Cow;
 
 use macros::{impl_for_non_gil, Object};
 use pyo3::prelude::*;
@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use crate::{
     context::Context,
     py_dict,
-    utils::{Object, GIL},
+    utils::{Gil, Object},
 };
 
 pub trait SymbolImpl {
@@ -17,7 +17,7 @@ pub trait SymbolImpl {
 #[derive(Clone, Debug, Object)]
 #[object(class_name = "Symbol")]
 pub struct Symbol(PyObject);
-impl<'py, 'a, 'b> GIL<'py, 'a, 'b, Symbol> {
+impl<'py, 'a, 'b> Gil<'py, 'a, 'b, Symbol> {
     pub fn new<T: ToString + ?Sized>(ctx: &'a Context<'py>, name: &T) -> PyResult<Self> {
         let res = Self::class(ctx)?.call1((name.to_string(),))?;
         Ok(Self(Cow::Owned(Symbol(res.into())), ctx))
@@ -34,7 +34,7 @@ impl<'py, 'a, 'b> GIL<'py, 'a, 'b, Symbol> {
     }
 }
 #[impl_for_non_gil(Symbol)]
-impl<'py, 'a, 'b> SymbolImpl for GIL<'py, 'a, 'b, Symbol> {
+impl<'py, 'a, 'b> SymbolImpl for Gil<'py, 'a, 'b, Symbol> {
     fn name(&self) -> PyResult<String> {
         self.py_inner().getattr("name")?.extract::<String>()
     }
@@ -44,10 +44,10 @@ impl<'py, 'a, 'b> SymbolImpl for GIL<'py, 'a, 'b, Symbol> {
 }
 
 impl<'py> Context<'py> {
-    pub fn symbol<T: ToString + ?Sized>(&self, name: &T) -> PyResult<GIL<Symbol>> {
-        GIL::<Symbol>::new(self, name)
+    pub fn symbol<T: ToString + ?Sized>(&self, name: &T) -> PyResult<Gil<Symbol>> {
+        Gil::<Symbol>::new(self, name)
     }
-    pub fn symbol_non_commutative<T: ToString + ?Sized>(&self, name: &T) -> PyResult<GIL<Symbol>> {
-        GIL::<Symbol>::new_non_commutative(self, name)
+    pub fn symbol_non_commutative<T: ToString + ?Sized>(&self, name: &T) -> PyResult<Gil<Symbol>> {
+        Gil::<Symbol>::new_non_commutative(self, name)
     }
 }

@@ -155,14 +155,11 @@
     clippy::wildcard_dependencies
 )]
 
-use darling::{ast::NestedMeta, FromAttributes, FromDeriveInput, FromMeta};
+use darling::FromDeriveInput;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
-use syn::{
-    parse::Parse, parse_macro_input, parse_quote, Attribute, Block, DeriveInput, FnArg, ImplItem,
-    ItemImpl, Meta, Pat, Type, TypePath,
-};
+use syn::{parse_macro_input, parse_quote, DeriveInput, FnArg, ImplItem, ItemImpl, Pat};
 
 #[derive(Debug, FromDeriveInput, Clone)]
 #[darling(attributes(object))]
