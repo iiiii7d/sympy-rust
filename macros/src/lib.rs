@@ -222,6 +222,9 @@ pub fn derive_config(item: TokenStream) -> TokenStream {
             fn new(ctx: &Context<'py>) -> Self {
                 Self(PyDict::new(ctx.gil))
             }
+            fn inner(&self) -> &'py PyDict {
+                &self.0
+            }
         }
     };
     out.into()

@@ -1,6 +1,9 @@
 use std::borrow::Cow;
 
-use pyo3::prelude::*;
+use pyo3::{
+    prelude::*,
+    types::{PyDict, PyString},
+};
 
 use crate::context::Context;
 
@@ -27,20 +30,34 @@ impl<'py, 'a, 'b, T: Object + Clone + ?Sized> Gil<'py, 'a, 'b, T> {
     pub fn py_inner<'c: 'py>(&'c self) -> &'py PyAny {
         self.inner().inner().as_ref(self.1.gil)
     }
+    pub(crate) fn get_attr<'c: 'py, N: IntoPy<Py<PyString>>, R: FromPyObject<'py>>(
+        &'c self,
+        name: N,
+    ) -> PyResult<R> {
+        self.py_inner().getattr(name)?.extract::<R>()
+    }
+    pub(crate) fn set_attr<'c: 'py, N: IntoPy<Py<PyString>>, V: ToPyObject>(
+        &'c self,
+        name: N,
+        value: V,
+    ) -> PyResult<()> {
+        self.py_inner().setattr(name, value)
+    }
     pub(crate) fn class(ctx: &'a Context<'py>) -> PyResult<&'a PyAny> {
         ctx.sympy().getattr(T::CLASS_NAME)
     }
 }
 
-pub trait Config<'py> {
+pub trait Config<'py>: Sized {
     fn new(ctx: &Context<'py>) -> Self;
+    fn inner(&self) -> &'py PyDict;
 }
 
 #[macro_export]
 macro_rules! config_fn {
     ($i:ident, $ty:ty) => {
-        pub fn $i(self, v: $ty) -> PyResult<Self> {
-            self.0.set_item(stringify!($i), v)?;
+        fn $i(self, v: $ty) -> PyResult<Self> {
+            self.inner().set_item(stringify!($i), v)?;
             Ok(self)
         }
     };

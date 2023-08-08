@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use duplicate::duplicate_item;
 use macros::{impl_for_non_gil, impl_for_non_gil2, Config, Object};
 use pyo3::{prelude::*, types::PyDict};
 
@@ -36,18 +37,10 @@ impl<'py, 'a, 'b> Gil<'py, 'a, 'b, Wild> {
 }
 #[derive(Copy, Clone, Config)]
 pub struct WildConfig<'py>(pub(crate) &'py PyDict);
-impl<'py> WildConfig<'py> {
+
+pub trait WildConfigImpl<'py>: Config<'py> {
     config_fn!(exclude, &[impl ToPyObject]); // todo
     config_fn!(properties, &[impl ToPyObject]); // todo
-    config_fn!(commutative, bool);
 }
 
-#[impl_for_non_gil(Wild)]
-impl<'py, 'a, 'b> SymbolImpl for Gil<'py, 'a, 'b, Wild> {
-    fn name(&self) -> PyResult<String> {
-        self.py_inner().getattr("name")?.extract::<String>()
-    }
-    fn set_name<T: ToString + ?Sized>(&self, name: &T) -> PyResult<()> {
-        self.py_inner().setattr("name", name.to_string())
-    }
-}
+impl<'py> WildConfigImpl<'py> for WildConfig<'py> {}

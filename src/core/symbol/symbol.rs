@@ -1,13 +1,16 @@
 use std::borrow::Cow;
 
+use duplicate::duplicate_item;
 use macros::{impl_for_non_gil, impl_for_non_gil2, Config, Object};
 use pyo3::{prelude::*, types::PyDict};
 
 use crate::{
     config_fn,
     context::Context,
+    core::symbol::wild::{Wild, WildConfig},
     utils::{Config, Gil, Object},
 };
+
 #[derive(Clone, Debug, Object)]
 #[object(class_name = "Symbol")]
 pub struct Symbol(PyObject);
@@ -35,21 +38,29 @@ impl<'py, 'a, 'b> Gil<'py, 'a, 'b, Symbol> {
 
 #[derive(Copy, Clone, Config)]
 pub struct SymbolConfig<'py>(pub(crate) &'py PyDict);
-impl<'py> SymbolConfig<'py> {
+
+pub trait SymbolConfigImpl<'py>: Config<'py> {
     config_fn!(commutative, bool);
 }
+#[duplicate_item(
+  StructConfig; [SymbolConfig]; [WildConfig];
+)]
+impl<'py> SymbolConfigImpl<'py> for StructConfig<'py> {}
 
 pub trait SymbolImpl {
     fn name(&self) -> PyResult<String>;
     fn set_name<T: ToString + ?Sized>(&self, name: &T) -> PyResult<()>;
 }
 
-#[impl_for_non_gil(Symbol)]
-impl<'py, 'a, 'b> SymbolImpl for Gil<'py, 'a, 'b, Symbol> {
+#[duplicate_item(
+  Struct; [Symbol]; [Wild];
+)]
+#[impl_for_non_gil(Struct)]
+impl<'py, 'a, 'b> SymbolImpl for Gil<'py, 'a, 'b, Struct> {
     fn name(&self) -> PyResult<String> {
-        self.py_inner().getattr("name")?.extract::<String>()
+        self.get_attr("name")
     }
     fn set_name<T: ToString + ?Sized>(&self, name: &T) -> PyResult<()> {
-        self.py_inner().setattr("name", name.to_string())
+        self.set_attr("name", name.to_string())
     }
 }

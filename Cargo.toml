@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 pyo3 = { version = "0.19.2", features = ['auto-initialize', 'eyre'] }
 macros = { path = "./macros", package = "sympy-rust-macros" }
+duplicate = "1.0.0"
 
 [workspace]
 members = ["macros"]
