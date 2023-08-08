@@ -7,7 +7,7 @@ use pyo3::{prelude::*, types::PyDict};
 use crate::{
     config_fn,
     context::Context,
-    core::symbol::wild::{Wild, WildConfig},
+    core::wild::{Wild, WildConfig},
     utils::{Config, Gil, Object},
 };
 
@@ -49,7 +49,7 @@ impl<'py> SymbolConfigImpl<'py> for StructConfig<'py> {}
 
 pub trait SymbolImpl {
     fn name(&self) -> PyResult<String>;
-    fn set_name<T: ToString + ?Sized>(&self, name: &T) -> PyResult<()>;
+    fn set_name<T: ToString>(&self, name: T) -> PyResult<()>;
 }
 
 #[duplicate_item(
@@ -60,7 +60,7 @@ impl<'py, 'a, 'b> SymbolImpl for Gil<'py, 'a, 'b, Struct> {
     fn name(&self) -> PyResult<String> {
         self.get_attr("name")
     }
-    fn set_name<T: ToString + ?Sized>(&self, name: &T) -> PyResult<()> {
+    fn set_name<T: ToString>(&self, name: T) -> PyResult<()> {
         self.set_attr("name", name.to_string())
     }
 }

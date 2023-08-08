@@ -202,6 +202,9 @@ pub fn derive_object(item: TokenStream) -> TokenStream {
             fn inner(&self) -> &PyObject {
                 &self.0
             }
+            fn into_inner(self) -> PyObject {
+                self.0
+            }
         }
     };
     out.into()

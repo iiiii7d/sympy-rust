@@ -7,7 +7,7 @@ use pyo3::{prelude::*, types::PyDict};
 use crate::{
     config_fn,
     context::Context,
-    core::symbol::symbol::SymbolImpl,
+    core::symbol::SymbolImpl,
     utils::{Config, Gil, Object},
 };
 

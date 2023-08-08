@@ -1,8 +1,5 @@
 use pyo3::PyResult;
-use sympy_rust::{
-    context::Context,
-    core::symbol::symbol::{Symbol, SymbolImpl},
-};
+use sympy_rust::prelude::*;
 
 #[test]
 fn it_works() -> PyResult<()> {

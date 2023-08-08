@@ -1,4 +1,3 @@
-#![allow(clippy::module_inception)]
 #![warn(
     clippy::as_ptr_cast_mut,
     clippy::as_underscore,
@@ -158,4 +157,5 @@
 
 pub mod context;
 pub mod core;
-mod utils;
+pub mod prelude;
+pub mod utils;
