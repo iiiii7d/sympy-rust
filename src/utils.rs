@@ -115,3 +115,14 @@ macro_rules! config_fn {
         }
     };
 }
+
+#[macro_export]
+macro_rules! method_dict {
+    ($self:ident, $($id:ident),+) => {{
+        let kw_args = PyDict::new($self.1.gil);
+        if let Some($id) = $id {
+            kw_args.set_item(stringify!($id), $id)?;
+        }
+        kw_args
+    }};
+}

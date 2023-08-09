@@ -11,6 +11,7 @@ use crate::{
     config_fn,
     context::Context,
     core::wild::{Wild, WildConfig},
+    method_dict,
     prelude::{Expr, Symbol},
     utils::{Config, Gil, Object},
 };
@@ -90,13 +91,7 @@ impl<'py, 'a, 'b> BasicImpl for Gil<'py, 'a, 'b, Struct> {
             .map(|a| a.into_iter().map(Basic).collect())
     }
     fn as_content_primitive(&self, radical: Option<bool>, clear: Option<bool>) -> PyResult<Basic> {
-        let kw_args = PyDict::new(self.1.gil);
-        if let Some(radical) = radical {
-            kw_args.set_item("radical", radical)?;
-        }
-        if let Some(clear) = clear {
-            kw_args.set_item("clear", clear)?;
-        }
+        let kw_args = method_dict!(self, radical, clear);
         self.call_method2("as_content_primitive", kw_args)
             .map(Basic)
     }

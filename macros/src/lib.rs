@@ -206,6 +206,11 @@ pub fn derive_object(item: TokenStream) -> TokenStream {
                 self.0
             }
         }
+        impl Into<PyObject> for #ident {
+            fn into(self) -> PyObject {
+                self.0
+            }
+        }
     };
     out.into()
 }
