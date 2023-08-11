@@ -9,9 +9,8 @@ use pyo3::{
 
 use crate::{
     context::Context,
-    core::wild::Wild,
+    core::{expr::Expr, symbol::Symbol, wild::Wild},
     method_args,
-    prelude::{Expr, Symbol},
     utils::{Gil, Object},
 };
 
