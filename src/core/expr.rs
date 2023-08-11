@@ -4,12 +4,7 @@ use duplicate::duplicate_item;
 use macros::{impl_for_non_gil, impl_for_non_gil2, Object};
 use pyo3::{prelude::*, types::PyTuple};
 
-use crate::{
-    context::Context,
-    core::wild::Wild,
-    prelude::Symbol,
-    utils::{Config, Gil, Object},
-};
+use crate::{context::Context, core::wild::Wild, prelude::Symbol, utils::Gil};
 
 #[derive(Clone, Debug, Object)]
 #[object(class_name = "Expr")]

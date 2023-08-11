@@ -6,7 +6,7 @@ use pyo3::{prelude::*, types::PyDict};
 use crate::{
     config_fn,
     context::Context,
-    utils::{Config, Gil, Object},
+    utils::{Config, Gil},
 };
 
 #[derive(Clone, Debug, Object)]

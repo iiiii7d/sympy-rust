@@ -12,7 +12,7 @@ use crate::{
     core::wild::Wild,
     method_args,
     prelude::{Expr, Symbol},
-    utils::{Config, Gil, Object},
+    utils::{Gil, Object},
 };
 
 #[derive(Clone, Debug, Object)]
@@ -250,13 +250,13 @@ pub trait BasicImplNoGil: Sized {
 #[duplicate_item(
   Struct; [Basic]; [Expr]; [Symbol]; [Wild];
 )]
-impl<'py, 'a, 'b> BasicImplNoGil for Struct {
+impl BasicImplNoGil for Struct {
     fn class_key() -> PyResult<PyObject> {
         Context::try_with_gil(|ctx| Gil::<Self>::class_key(&ctx))
     }
     fn from_iter(args: Py<PyAny>, assumptions: Option<Py<PyDict>>) -> PyResult<Self> {
         Context::try_with_gil(|ctx| {
-            Gil::<Self>::from_iter(&ctx, args, assumptions).map(|a| a.into_inner())
+            Gil::<Self>::from_iter(&ctx, args, assumptions).map(Gil::into_inner)
         })
     }
 }
