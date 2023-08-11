@@ -107,6 +107,33 @@ pub trait Config<'py>: Sized {
     fn inner(&self) -> &'py PyDict;
 }
 
+pub trait FromParentClass<T> {
+    fn try_from_parent(value: T) -> PyResult<Option<Self>>;
+}
+impl<'py, 'a, 'b, T: Object + FromParentClass<U>, U: Object> FromParentClass<Gil<'py, 'a, 'b, T>>
+    for Gil<'py, 'a, 'b, U>
+{
+    fn try_from_parent(value: Gil<'py, 'a, 'b, T>) -> PyResult<Option<Self>> {
+        let f = value.1.gil.import("builtins")?.getattr("issubclass")?;
+        let child_class = Gil::<U>::class(&value.1)?;
+        let parent_class = value.0.with_ctx(&value.1).py_inner().getattr("__class__")?;
+        Ok(f.call1((child_class, parent_class))?
+            .extract::<bool>()?
+            .then(|| Gil(value.0.into(), value.1)))
+    }
+}
+impl<'py, 'a, 'b, T: Object + FromParentClass<U>, U: Object> FromParentClass<T> for U {
+    fn try_from_parent(value: T) -> PyResult<Option<Self>> {
+        Context::try_with_gil(|ctx| Gil::<T>::try_from_parent(value.into_with_ctx(&ctx)))
+    }
+}
+pub trait IntoChildClass<T: FromParentClass<Self>> {
+    fn into_child(self, value: T) -> PyResult<Self> {
+        T::from_parent(value)
+    }
+}
+impl<T: FromParentClass<U>, U> IntoChildClass<T> for U {}
+
 #[macro_export]
 macro_rules! config_fn {
     ($i:ident, $ty:ty) => {

@@ -260,3 +260,20 @@ impl BasicImplNoGil for Struct {
         })
     }
 }
+
+#[duplicate_item(
+  Struct; [Expr]; [Symbol]; [Wild];
+)]
+impl From<Struct> for Basic {
+    fn from(value: Struct) -> Self {
+        Self(value.0)
+    }
+}
+#[duplicate_item(
+  Struct; [Expr]; [Symbol]; [Wild];
+)]
+impl<'py, 'a, 'b> From<Gil<'py, 'a, 'b, Struct>> for Gil<'py, 'a, 'b, Basic> {
+    fn from(value: Gil<'py, 'a, 'b, Struct>) -> Self {
+        Self(Cow::Owned(Basic(value.0.into_owned().0)), value.1)
+    }
+}
