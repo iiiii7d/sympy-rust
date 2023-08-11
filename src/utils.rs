@@ -56,9 +56,7 @@ impl<'py, 'a, 'b, T: Object + Clone + ?Sized> Gil<'py, 'a, 'b, T> {
         args: A,
         kw_args: Option<K>,
     ) -> PyResult<R> {
-        let kw_args = kw_args
-            .as_ref()
-            .map(|a| a.into_py(self.1.gil).as_ref(self.1.gil));
+        let kw_args = kw_args.map(|a| a.into_py(self.1.gil).into_ref(self.1.gil));
         self.py_inner()
             .call_method(name, args, kw_args)?
             .extract::<R>()
@@ -91,7 +89,7 @@ impl<'py, 'a, 'b, T: Object + Clone + ?Sized> Gil<'py, 'a, 'b, T> {
         name: N,
         kw_args: K,
     ) -> PyResult<R> {
-        let kw_args = kw_args.into_py(self.1.gil).as_ref(self.1.gil);
+        let kw_args = kw_args.into_py(self.1.gil).into_ref(self.1.gil);
         self.py_inner()
             .call_method(name, (), Some(kw_args))?
             .extract::<R>()
@@ -117,12 +115,22 @@ macro_rules! config_fn {
 }
 
 #[macro_export]
-macro_rules! method_dict {
-    ($self:ident, $($id:ident),+) => {{
+macro_rules! method_args {
+    (dict $self:ident, $($id:ident),+) => {{
         let kw_args = PyDict::new($self.1.gil);
-        if let Some($id) = $id {
+        $(if let Some($id) = $id {
             kw_args.set_item(stringify!($id), $id)?;
-        }
+        })+
         kw_args
     }};
+    (tuple $self:ident, $list:ident, $ty:ident) => {
+        PyTuple::new($self.1.gil, $list
+            .iter()
+            .cloned()
+            .map(|a| $ty::try_from(a).unwrap().into_inner())
+            .collect::<Vec<PyObject>>())
+    };
+    (conv $ident:ident, $ty:ident) => {
+        $ty::try_from($ident).unwrap().into_inner()
+    }
 }

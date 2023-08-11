@@ -250,12 +250,21 @@ pub fn impl_for_non_gil(attr: TokenStream, item: TokenStream) -> TokenStream {
         };
         let ident = &f.sig.ident;
         let args = args(f);
-        let block = parse_quote! {{
-            let s = self.to_owned();
-            Context::try_with_gil(move |ctx| {
-                s.with_ctx(&ctx).#ident(#(#args),*)
-            })
-        }};
+        let has_self = f.sig.inputs.iter().any(|a| matches!(a, FnArg::Receiver(_)));
+        let block = if has_self {
+            parse_quote! {{
+                let __s = self.to_owned();
+                Context::try_with_gil(move |ctx| {
+                    __s.with_ctx(&ctx).#ident(#(#args),*)
+                })
+            }}
+        } else {
+            parse_quote! {{
+                Context::try_with_gil(move |ctx| {
+                    Self::#ident(&#(#args),*)
+                })
+            }}
+        };
         f.block = block;
     }
     let new_items = new_item.items;
