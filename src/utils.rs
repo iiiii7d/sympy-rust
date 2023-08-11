@@ -19,6 +19,9 @@ pub trait Object: Clone {
     fn with_ctx<'py, 'a: 'py, 'b: 'py>(&'b self, ctx: &'a Context<'py>) -> Gil<'py, 'a, 'b, Self> {
         Gil(Cow::Borrowed(self), ctx)
     }
+    fn into_with_ctx<'py, 'a: 'py, 'b: 'py>(self, ctx: &'a Context<'py>) -> Gil<'py, 'a, 'b, Self> {
+        Gil(Cow::Owned(self), ctx)
+    }
 }
 
 impl<'py, 'a, 'b, T: Object + Clone + ?Sized> Gil<'py, 'a, 'b, T> {

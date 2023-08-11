@@ -1,19 +1,17 @@
 use std::borrow::Cow;
 
-use duplicate::duplicate_item;
-use macros::{impl_for_non_gil, impl_for_non_gil2, Config, Object};
+use macros::{impl_for_non_gil2, Config, Object};
 use pyo3::{prelude::*, types::PyDict};
 
 use crate::{
     config_fn,
     context::Context,
-    core::symbol::SymbolImpl,
     utils::{Config, Gil, Object},
 };
 
 #[derive(Clone, Debug, Object)]
 #[object(class_name = "Wild")]
-pub struct Wild(PyObject);
+pub struct Wild(pub(crate) PyObject);
 
 #[impl_for_non_gil2(Wild)]
 impl<'py, 'a, 'b> Gil<'py, 'a, 'b, Wild> {

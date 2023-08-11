@@ -1,16 +1,15 @@
-use std::{borrow::Cow, cmp::Ordering, collections::HashSet};
+use std::{borrow::Cow, cmp::Ordering};
 
 use duplicate::duplicate_item;
-use macros::{impl_for_non_gil, impl_for_non_gil2, Config, Object};
+use macros::{impl_for_non_gil, impl_for_non_gil2, Object};
 use pyo3::{
     prelude::*,
     types::{PyDict, PySet, PyTuple},
 };
 
 use crate::{
-    config_fn,
     context::Context,
-    core::wild::{Wild, WildConfig},
+    core::wild::Wild,
     method_args,
     prelude::{Expr, Symbol},
     utils::{Config, Gil, Object},
@@ -35,7 +34,6 @@ pub trait BasicImpl: Sized {
     fn assumptions0(&self) -> PyResult<Py<PyDict>>;
     fn atoms<B: Into<Basic> + Clone>(&self, types: &[B]) -> PyResult<Py<PySet>>;
     fn canonical_variables(&self) -> PyResult<Py<PyDict>>;
-    fn class_key(ctx: &Context) -> PyResult<PyObject>;
     fn compare<B: Into<Basic>>(&self, other: B) -> PyResult<Ordering>;
     fn count<B: Into<Basic>>(&self, query: B) -> PyResult<usize>; // todo
     fn count_ops(&self, visual: Option<bool>) -> PyResult<usize>; // todo
@@ -47,11 +45,6 @@ pub trait BasicImpl: Sized {
     ) -> PyResult<bool>; // todo
     fn find<B: Into<Basic>>(&self, query: B, group: Option<bool>) -> PyResult<PyObject>;
     fn free_symbols(&self) -> PyResult<Py<PySet>>;
-    fn from_iter(
-        ctx: &Context,
-        args: Py<PyAny>,
-        assumptions: Option<Py<PyDict>>,
-    ) -> PyResult<Basic>;
     fn func(&self) -> PyResult<PyObject>;
     fn has(&self, patterns: Py<PyTuple>) -> PyResult<bool>;
     fn has_free(&self, patterns: Py<PyTuple>) -> PyResult<bool>;
@@ -108,11 +101,6 @@ impl<'py, 'a, 'b> BasicImpl for Gil<'py, 'a, 'b, Struct> {
     fn canonical_variables(&self) -> PyResult<Py<PyDict>> {
         self.get_attr("canonical_variables")
     }
-    fn class_key(ctx: &Context) -> PyResult<PyObject> {
-        Gil::<Struct>::class(ctx)?
-            .call_method0("class_key")?
-            .extract()
-    }
     fn compare<B: Into<Basic>>(&self, other: B) -> PyResult<Ordering> {
         let res: i8 = self.call_method1("compare", (method_args!(conv other, Basic),))?;
         Ok(match res {
@@ -147,17 +135,6 @@ impl<'py, 'a, 'b> BasicImpl for Gil<'py, 'a, 'b, Struct> {
     }
     fn free_symbols(&self) -> PyResult<Py<PySet>> {
         self.get_attr("free_symbols")
-    }
-    fn from_iter(
-        ctx: &Context,
-        args: Py<PyAny>,
-        assumptions: Option<Py<PyDict>>,
-    ) -> PyResult<Basic> {
-        let assumptions = assumptions.map(|a| a.into_ref(ctx.gil));
-        Gil::<Struct>::class(ctx)?
-            .call_method("fromiter", (args,), assumptions)?
-            .extract()
-            .map(Basic)
     }
     fn func(&self) -> PyResult<PyObject> {
         self.get_attr("func")
@@ -233,5 +210,53 @@ impl<'py, 'a, 'b> BasicImpl for Gil<'py, 'a, 'b, Struct> {
     fn x_replace(&self, rule: Py<PyDict>) -> PyResult<Basic> {
         self.call_method2("xreplace", rule.as_ref(self.1.gil))
             .map(Basic)
+    }
+}
+
+pub trait BasicImplGil<'a, 'py>: Sized {
+    fn class_key(ctx: &'a Context<'py>) -> PyResult<PyObject>;
+    fn from_iter(
+        ctx: &'a Context<'py>,
+        args: Py<PyAny>,
+        assumptions: Option<Py<PyDict>>,
+    ) -> PyResult<Self>;
+}
+#[duplicate_item(
+  Struct; [Basic]; [Expr]; [Symbol]; [Wild];
+)]
+impl<'py, 'a, 'b> BasicImplGil<'a, 'py> for Gil<'py, 'a, 'b, Struct> {
+    fn class_key(ctx: &'a Context<'py>) -> PyResult<PyObject> {
+        Gil::<Struct>::class(ctx)?
+            .call_method0("class_key")?
+            .extract()
+    }
+    fn from_iter(
+        ctx: &'a Context<'py>,
+        args: Py<PyAny>,
+        assumptions: Option<Py<PyDict>>,
+    ) -> PyResult<Self> {
+        let assumptions = assumptions.map(|a| a.into_ref(ctx.gil));
+        Gil::<Struct>::class(ctx)?
+            .call_method("fromiter", (args,), assumptions)?
+            .extract()
+            .map(|a| Struct(a).into_with_ctx(ctx))
+    }
+}
+
+pub trait BasicImplNoGil: Sized {
+    fn class_key() -> PyResult<PyObject>;
+    fn from_iter(args: Py<PyAny>, assumptions: Option<Py<PyDict>>) -> PyResult<Self>;
+}
+#[duplicate_item(
+  Struct; [Basic]; [Expr]; [Symbol]; [Wild];
+)]
+impl<'py, 'a, 'b> BasicImplNoGil for Struct {
+    fn class_key() -> PyResult<PyObject> {
+        Context::try_with_gil(|ctx| Gil::<Self>::class_key(&ctx))
+    }
+    fn from_iter(args: Py<PyAny>, assumptions: Option<Py<PyDict>>) -> PyResult<Self> {
+        Context::try_with_gil(|ctx| {
+            Gil::<Self>::from_iter(&ctx, args, assumptions).map(|a| a.into_inner())
+        })
     }
 }

@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Clone, Debug, Object)]
 #[object(class_name = "Symbol")]
-pub struct Symbol(PyObject);
+pub struct Symbol(pub(crate) PyObject);
 
 #[impl_for_non_gil2(Symbol)]
 impl<'py, 'a, 'b> Gil<'py, 'a, 'b, Symbol> {

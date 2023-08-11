@@ -160,11 +160,11 @@ use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, parse_quote, punctuated::Punctuated, DeriveInput, Expr, ExprArray, FnArg,
-    ImplItem, ImplItemFn, ItemImpl, Pat, Receiver, ReturnType, Token,
+    parse_macro_input, parse_quote, punctuated::Punctuated, DeriveInput, FnArg, ImplItem,
+    ImplItemFn, ItemImpl, Pat, ReturnType, Token,
 };
 
-fn args(f: &ImplItemFn) -> Vec<&Ident> {
+fn args(f: &ImplItemFn) -> Vec<Ident> {
     f.sig
         .inputs
         .iter()
@@ -177,12 +177,24 @@ fn args(f: &ImplItemFn) -> Vec<&Ident> {
         })
         .filter_map(|a| {
             if let Pat::Ident(i) = &**a {
-                Some(&i.ident)
+                Some(i.ident.to_owned())
             } else {
                 None
             }
         })
         .collect::<Vec<_>>()
+}
+fn remove_ctx(f: &ImplItemFn) -> Punctuated<FnArg, Token![,]> {
+    f.sig
+        .inputs
+        .iter()
+        .cloned()
+        .filter(|a| {
+            let FnArg::Typed(ty) = a else { return true };
+            let Pat::Ident(i) = &*ty.pat else { return true };
+            &*i.ident.to_string() != "ctx"
+        })
+        .collect()
 }
 
 #[derive(Debug, FromDeriveInput, Clone)]
@@ -288,17 +300,7 @@ pub fn impl_for_non_gil2(attr: TokenStream, item: TokenStream) -> TokenStream {
             continue;
         };
         let ident = &f.sig.ident;
-        f.sig.inputs = f
-            .sig
-            .inputs
-            .iter()
-            .cloned()
-            .filter(|a| {
-                let FnArg::Typed(ty) = a else { return true };
-                let Pat::Ident(i) = &*ty.pat else { return true };
-                &*i.ident.to_string() != "ctx"
-            })
-            .collect();
+        f.sig.inputs = remove_ctx(f);
         let args = args(f);
         let block = parse_quote! {{
             Context::try_with_gil(|ctx| {
